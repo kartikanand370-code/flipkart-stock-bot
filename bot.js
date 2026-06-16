@@ -6,7 +6,7 @@ const express = require('express');
 // --- CONFIGURATION ---
 const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
 const ADMIN_CHAT_ID = '7485181331'; 
-const CHECK_INTERVAL = 30000; 
+const CHECK_INTERVAL = 15000; // 15 Seconds pr set kar diya hai
 // ---------------------
 
 const bot = new Telegraf(BOT_TOKEN);
@@ -24,17 +24,15 @@ const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Middleware: Access Controller (AB EKEDUM PERFECT HAI)
+// Middleware: Access Controller (Bug Fixed)
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
     
-    // CONDITION FIXED: Agar user pehle se approved hai, ya callback query admin ki hai, toh bina roke aage jaane do
     if (approvedUsers.has(userId) || (ctx.callbackQuery && ctx.from.id.toString() === ADMIN_CHAT_ID.toString())) {
         return next();
     }
     
-    // Agar user approved NAI hai aur koi bhi message bhejta hai, toh start validation chalao
     if (ctx.message) {
         const name = `${ctx.from.first_name || ''} ${ctx.from.last_name || ''}`.trim() || 'No Name';
         const username = ctx.from.username ? `@${ctx.from.username}` : 'No Username';
@@ -124,7 +122,7 @@ bot.command('start_track', async (ctx) => {
     
     const intervalId = setInterval(() => { checkFlipkartStock(ctx, chatId, flipkartLink); }, CHECK_INTERVAL);
     activeUsers[chatId].push({ url: flipkartLink, interval: intervalId });
-    ctx.reply(`🚀 Flipkart tracking chalu ho gayi hai...`);
+    ctx.reply(`🚀 Flipkart tracking chalu ho gayi hai (Har 15 seconds mein check hoga)...`);
     checkFlipkartStock(ctx, chatId, flipkartLink);
 });
 
