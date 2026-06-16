@@ -14,17 +14,19 @@ const activeUsers = {};
 const approvedUsers = new Set([ADMIN_CHAT_ID.toString()]);
 const userNames = { [ADMIN_CHAT_ID.toString()]: "Admin (Aap)" };
 
-const HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept-Language': 'en-US,en;q=0.9'
-};
+// Rotation ke liye different User-Agents taaki Flipkart block na kare
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
+];
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Middleware: Access Controller (Bug Fixed)
+// Middleware: Access Controller
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
@@ -148,8 +150,21 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
     const itemIndex = activeUsers[chatId].findIndex(item => item.url === targetUrl);
     if (itemIndex === -1) return;
 
+    // Random User-Agent select kar rahe hain block hone se bachne ke liye
+    const randomAgent = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
     try {
-        const response = await axios.get(targetUrl, { headers: HEADERS });
+        const response = await axios.get(targetUrl, { 
+            headers: {
+                'User-Agent': randomAgent,
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            },
+            timeout: 8000 // 8 second mein response nahi aaya toh request drop kar do (crash nahi hoga)
+        });
+        
         const $ = cheerio.load(response.data);
         const pageText = $('body').text().toLowerCase();
         
@@ -162,7 +177,10 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
                 Markup.inlineKeyboard([[Markup.button.callback('Stop Tracking 🛑', `stop_url_${itemIndex}`)]])
             );
         }
-    } catch (e) { console.error(`Flipkart Scraping error:`, e.message); }
+    } catch (e) { 
+        // FIXED: Kisi bhi failure par bot crash nahi hoga, chupchap log print karega
+        console.log(`[Flipkart Bypass] Request failed or blocked, waiting for next turn... (${e.message})`); 
+    }
 }
 
-bot.launch().then(() => console.log("Flipkart Bot updated successfully..."));
+bot.launch().then(() => console.log("Flipkart Bot anti-crash version deployed..."));
