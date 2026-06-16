@@ -19,35 +19,40 @@ const HEADERS = {
     'Accept-Language': 'en-US,en;q=0.9'
 };
 
-const app = reportServer = express();
+const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
+// Middleware: Access Controller (AB EKEDUM PERFECT HAI)
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
+    
+    // CONDITION FIXED: Agar user pehle se approved hai, ya callback query admin ki hai, toh bina roke aage jaane do
     if (approvedUsers.has(userId) || (ctx.callbackQuery && ctx.from.id.toString() === ADMIN_CHAT_ID.toString())) {
         return next();
     }
-    if (ctx.message && ctx.message.text === '/start') {
+    
+    // Agar user approved NAI hai aur koi bhi message bhejta hai, toh start validation chalao
+    if (ctx.message) {
         const name = `${ctx.from.first_name || ''} ${ctx.from.last_name || ''}`.trim() || 'No Name';
         const username = ctx.from.username ? `@${ctx.from.username}` : 'No Username';
         userNames[userId] = name;
-        ctx.reply("🔒 Access Denied! Request Admin ke paas bhej di gayi hai...");
+        
+        ctx.reply("🔒 Access Denied! Aap approved nahi hain. Aapki request Admin ke paas approval ke liye bhej di gayi hai...");
+        
         return bot.telegram.sendMessage(ADMIN_CHAT_ID, 
             `🚨 **New Flipkart Bot Request!**\n\n👤 Name: ${name}\n🆔 ID: ${userId}\n🌐 Username: ${username}`,
             Markup.inlineKeyboard([[Markup.button.callback('Approve ✅', `approve_${userId}`), Markup.button.callback('Decline ❌', `decline_${userId}`)]])
         );
     }
-    return ctx.reply("❌ Aap approved nahi hain.");
 });
 
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const userId = ctx.from.id.toString();
     
-    // Handle inline stop tracking button (Sabhi users ke liye)
     if (data.startsWith('stop_url_')) {
         const index = parseInt(data.split('_')[2]);
         const chatId = ctx.chat.id.toString();
@@ -68,13 +73,14 @@ bot.on('callback_query', async (ctx) => {
     if (data.startsWith('approve_')) {
         approvedUsers.add(targetUserId.toString());
         await ctx.editMessageText(`${ctx.callbackQuery.message.text}\n\n✅ **Status: Approved!**`);
-        bot.telegram.sendMessage(targetUserId, "🥳 Approved! Use: `/start_track <Flipkart_URL>`");
+        bot.telegram.sendMessage(targetUserId, "🥳 Mubarak ho! Admin ne aapka request approve kar diya hai.\n\nProduct track karne ke liye bhejien:\n`/start_track <Flipkart_URL>`");
     } else if (data.startsWith('decline_')) {
         await ctx.editMessageText(`${ctx.callbackQuery.message.text}\n\n❌ **Status: Declined!**`);
     }
     await ctx.answerCbQuery();
 });
 
+// --- ADMIN CONTROL COMMANDS ---
 bot.command('list_users', (ctx) => {
     if (ctx.from.id.toString() !== ADMIN_CHAT_ID.toString()) return ctx.reply("❌ Admin Only!");
     if (approvedUsers.size <= 1) return ctx.reply("👥 Koyi approved user nahi hai.");
@@ -100,11 +106,12 @@ bot.command('remove_user', (ctx) => {
             activeUsers[targetUserId].forEach(item => clearInterval(item.interval));
             delete activeUsers[targetUserId];
         }
-        ctx.reply(`✅ User remove ho gaya.`);
+        ctx.reply(`✅ User ID ${targetUserId} remove ho gaya.`);
     } else { ctx.reply("⚠️ ID nahi mili."); }
 });
 
-bot.start((ctx) => ctx.reply("🤖 Flipkart Tracker Bot Active!\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
+// --- USER COMMANDS ---
+bot.start((ctx) => ctx.reply("🤖 Welcome back! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
 
 bot.command('start_track', async (ctx) => {
     const chatId = ctx.chat.id.toString();
@@ -113,7 +120,7 @@ bot.command('start_track', async (ctx) => {
     
     if (!flipkartLink) return ctx.reply("❌ Valid Flipkart link bhejo!");
     if (!activeUsers[chatId]) activeUsers[chatId] = [];
-    if (activeUsers[chatId].some(item => item.url === flipkartLink)) return ctx.reply("⚠️ Yeh pehle se track ho raha hai!");
+    if (activeUsers[chatId].some(item => item.url === flipkartLink)) return ctx.reply("⚠️ Yeh link aap pehle se track kar rahe ho!");
     
     const intervalId = setInterval(() => { checkFlipkartStock(ctx, chatId, flipkartLink); }, CHECK_INTERVAL);
     activeUsers[chatId].push({ url: flipkartLink, interval: intervalId });
@@ -153,7 +160,6 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
                              pageText.includes('notify me');
                              
         if (!isOutOfStock && (pageText.includes('buy now') || pageText.includes('add to cart'))) {
-            // Har 30 second par notification aayega jab tak niche diya Stop button na dabaayein
             await bot.telegram.sendMessage(chatId, `🚨 STOCK AAGYA 🚨\n\n🔥 bhai flipkart pr stock aagya jldi lga jake 🔥\n\nLink:\n${targetUrl}`,
                 Markup.inlineKeyboard([[Markup.button.callback('Stop Tracking 🛑', `stop_url_${itemIndex}`)]])
             );
