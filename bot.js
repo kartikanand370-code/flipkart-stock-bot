@@ -12,6 +12,7 @@ const CHECK_INTERVAL = 10000; // 10 Seconds
 const bot = new Telegraf(BOT_TOKEN);
 const activeUsers = {};
 
+// Memory persistent global list for Render runtime
 global.approvedList = global.approvedList || [ADMIN_CHAT_ID.toString()];
 const userNames = { [ADMIN_CHAT_ID.toString()]: "Admin (Aap)" };
 
@@ -23,10 +24,10 @@ const USER_AGENTS = [
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Flipkart Bot Server is running!'));
+app.get('/', (req, res) => res.send('Flipkart Bot Server is running flawlessly!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Function to handle unauthorized access gently
+// Secure Check Function: Jo sirf command run hone par hi trigger hogi
 function checkAccess(ctx) {
     const userId = ctx.from.id.toString();
     if (global.approvedList.includes(userId)) return true;
@@ -77,7 +78,7 @@ bot.on('callback_query', async (ctx) => {
     await ctx.answerCbQuery();
 });
 
-// --- USER & ADMIN COMMANDS WITH EMBEDDED PROTECTION ---
+// --- USER COMMANDS WITH PROTECTION ---
 bot.start((ctx) => {
     if (!checkAccess(ctx)) return;
     ctx.reply("🤖 Welcome back! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`");
@@ -119,6 +120,7 @@ bot.command('stop_all', (ctx) => {
     } else { ctx.reply("⚠️ Koyi active tracking nahi mili."); }
 });
 
+// --- ADMIN MANAGEMENT COMMANDS ---
 bot.command('list_users', (ctx) => {
     if (ctx.from.id.toString() !== ADMIN_CHAT_ID.toString()) return ctx.reply("❌ Admin Only!");
     if (global.approvedList.length <= 1) return ctx.reply("👥 Koyi approved user nahi hai.");
@@ -174,4 +176,4 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
     } catch (e) { console.log(`[Flipkart Bypass] Error, retrying...`); }
 }
 
-bot.launch().then(() => console.log("Flipkart Bot running smoothly..."));
+bot.launch().then(() => console.log("Flipkart Stable Bot successfully initiated..."));
