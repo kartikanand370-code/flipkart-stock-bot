@@ -6,7 +6,7 @@ const express = require('express');
 // --- CONFIGURATION ---
 const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
 const ADMIN_CHAT_ID = '7485181331'; 
-const CHECK_INTERVAL = 30000; // 30 seconds
+const CHECK_INTERVAL = 30000; 
 // ---------------------
 
 const bot = new Telegraf(BOT_TOKEN);
@@ -19,13 +19,13 @@ const HEADERS = {
     'Accept-Language': 'en-US,en;q=0.9'
 };
 
-// Render Timeout Prevention Web Server
+// Render Web Server Setup
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Middleware: Access Controller (Only Admin or Approved Users)
+// Middleware: Access Controller
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
@@ -41,6 +41,8 @@ bot.use(async (ctx, next) => {
         userNames[userId] = name;
         
         ctx.reply("🔒 Access Denied! Aapka request Admin ke paas approval ke liye bhej diya gaya hai. Kripya thoda wait karein...");
+        
+        // Admin ko alert bhej rahe hain
         return bot.telegram.sendMessage(ADMIN_CHAT_ID, 
             `🚨 **New Flipkart Bot Request!**\n\n👤 Name: ${name}\n🆔 ID: ${userId}\n🌐 Username: ${username}`,
             Markup.inlineKeyboard([[Markup.button.callback('Approve ✅', `approve_${userId}`), Markup.button.callback('Decline ❌', `decline_${userId}`)]])
@@ -66,7 +68,6 @@ bot.on('callback_query', async (ctx) => {
 });
 
 // --- ADMIN CONTROL COMMANDS ---
-
 bot.command('list_users', (ctx) => {
     if (ctx.from.id.toString() !== ADMIN_CHAT_ID.toString()) return ctx.reply("❌ Yeh command sirf Admin use kar sakta hai!");
     if (approvedUsers.size <= 1) return ctx.reply("👥 Abhi aapke alawa koi bhi user approved nahi hai.");
@@ -145,15 +146,12 @@ async function checkFlipkartStock(ctx, chatId, targetUrl, intervalId) {
     try {
         const response = await axios.get(targetUrl, { headers: HEADERS });
         const $ = cheerio.load(response.data);
-        
         const pageText = $('body').text().toLowerCase();
         
-        // Flipkart out of stock indications
         const isOutOfStock = pageText.includes('currently unavailable') || 
                              pageText.includes('this item is currently out of stock') || 
                              pageText.includes('notify me');
                              
-        // Agar out of stock nahi hai, matlab stock aa gaya hai!
         if (!isOutOfStock && (pageText.includes('buy now') || pageText.includes('add to cart'))) {
             await bot.telegram.sendMessage(chatId, `🚨 STOCK AAGYA 🚨\n\n🔥 bhai flipkart pr stock aagya jldi lga jake 🔥\n\nLink:\n${targetUrl}`);
             clearInterval(intervalId);
