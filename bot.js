@@ -2,6 +2,8 @@ const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 
 // --- CONFIGURATION ---
 const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
@@ -11,10 +13,28 @@ const CHECK_INTERVAL = 10000; // 10 Seconds
 
 const bot = new Telegraf(BOT_TOKEN);
 const activeUsers = {};
-const approvedUsers = new Set([ADMIN_CHAT_ID.toString()]);
+const FILE_PATH = path.join(__dirname, 'users.json');
+
+// Memory persist karne ke liye file function
+function loadApprovedUsers() {
+    try {
+        if (fs.existsSync(FILE_PATH)) {
+            const data = fs.readFileSync(FILE_PATH, 'utf8');
+            return new Set(JSON.parse(data));
+        }
+    } catch (e) { console.error("Error loading users:", e); }
+    return new Set([ADMIN_CHAT_ID.toString()]);
+}
+
+function saveApprovedUsers() {
+    try {
+        fs.writeFileSync(FILE_PATH, JSON.stringify(Array.from(approvedUsers)), 'utf8');
+    } catch (e) { console.error("Error saving users:", e); }
+}
+
+const approvedUsers = loadApprovedUsers();
 const userNames = { [ADMIN_CHAT_ID.toString()]: "Admin (Aap)" };
 
-// Rotation ke liye different User-Agents taaki Flipkart block na kare
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -26,7 +46,7 @@ const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Middleware: Access Controller
+// Middleware: Access Controller (PERMANENT FIXED)
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
@@ -72,6 +92,7 @@ bot.on('callback_query', async (ctx) => {
     const targetUserId = data.split('_')[1];
     if (data.startsWith('approve_')) {
         approvedUsers.add(targetUserId.toString());
+        saveApprovedUsers(); // File me save ho gaya
         await ctx.editMessageText(`${ctx.callbackQuery.message.text}\n\n✅ **Status: Approved!**`);
         bot.telegram.sendMessage(targetUserId, "🥳 Mubarak ho! Admin ne aapka request approve kar diya hai.\n\nProduct track karne ke liye bhejien:\n`/start_track <Flipkart_URL>`");
     } else if (data.startsWith('decline_')) {
@@ -102,6 +123,7 @@ bot.command('remove_user', (ctx) => {
     const targetUserId = args[1].trim();
     if (approvedUsers.has(targetUserId)) {
         approvedUsers.delete(targetUserId);
+        saveApprovedUsers(); // File se hat gaya
         if (activeUsers[targetUserId]) {
             activeUsers[targetUserId].forEach(item => clearInterval(item.interval));
             delete activeUsers[targetUserId];
@@ -110,7 +132,6 @@ bot.command('remove_user', (ctx) => {
     } else { ctx.reply("⚠️ ID nahi mili."); }
 });
 
-// --- USER COMMANDS ---
 bot.start((ctx) => ctx.reply("🤖 Welcome back! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
 
 bot.command('start_track', async (ctx) => {
@@ -150,21 +171,10 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
     const itemIndex = activeUsers[chatId].findIndex(item => item.url === targetUrl);
     if (itemIndex === -1) return;
 
-    // Random User-Agent select kar rahe hain block hone se bachne ke liye
     const randomAgent = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 
     try {
-        const response = await axios.get(targetUrl, { 
-            headers: {
-                'User-Agent': randomAgent,
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            },
-            timeout: 8000 // 8 second mein response nahi aaya toh request drop kar do (crash nahi hoga)
-        });
-        
+        const response = await axios.get(targetUrl, { headers: { 'User-Agent': randomAgent, 'Accept-Language': 'en-US,en;q=0.9' }, timeout: 8000 });
         const $ = cheerio.load(response.data);
         const pageText = $('body').text().toLowerCase();
         
@@ -177,10 +187,7 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
                 Markup.inlineKeyboard([[Markup.button.callback('Stop Tracking 🛑', `stop_url_${itemIndex}`)]])
             );
         }
-    } catch (e) { 
-        // FIXED: Kisi bhi failure par bot crash nahi hoga, chupchap log print karega
-        console.log(`[Flipkart Bypass] Request failed or blocked, waiting for next turn... (${e.message})`); 
-    }
+    } catch (e) { console.log(`[Flipkart Bypass] Error, retrying...`); }
 }
 
-bot.launch().then(() => console.log("Flipkart Bot anti-crash version deployed..."));
+bot.launch().then(() => console.log("Flipkart Ultimate Bot Live..."));
