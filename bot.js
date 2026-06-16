@@ -4,7 +4,7 @@ const cheerio = require('cheerio');
 const express = require('express');
 
 // --- CONFIGURATION ---
-const BOT_TOKEN = '8626380085:AAHUlHu1JiFmstshFCg9hFKVS6KTZ3-vkPw'; 
+const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
 const ADMIN_CHAT_ID = '7485181331'; 
 const CHECK_INTERVAL = 30000; // 30 seconds
 // ---------------------
@@ -20,7 +20,7 @@ const HEADERS = {
 };
 
 // Render Timeout Prevention Web Server
-const app = reportServer = express();
+const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
@@ -98,15 +98,15 @@ bot.command('remove_user', (ctx) => {
             activeUsers[targetUserId].forEach(item => clearInterval(item.interval));
             delete activeUsers[targetUserId];
         }
-        ctx.reply(`✅ **${name}** ko remove kar diya gaya hai.`);
-        bot.telegram.sendMessage(targetUserId, "🔒 Admin ne aapka access remove kar diya hai.");
+        ctx.reply(`✅ **${name}** (ID: ${targetUserId}) ko successfully remove kar diya gaya hai.`);
+        bot.telegram.sendMessage(targetUserId, "🔒 Admin ne aapka access remove kar diya hai. Ab aap is bot ko use nahi kar sakte.");
     } else {
         ctx.reply("⚠️ ID approved list mein nahi mili.");
     }
 });
 
 // --- USER COMMANDS ---
-bot.start((ctx) => ctx.reply("🤖 Welcome! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
+bot.start((ctx) => ctx.reply("🤖 Welcome back! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
 
 bot.command('start_track', async (ctx) => {
     const chatId = ctx.chat.id.toString();
