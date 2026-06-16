@@ -2,8 +2,6 @@ const { Telegraf, Markup } = require('telegraf');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 
 // --- CONFIGURATION ---
 const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
@@ -13,26 +11,9 @@ const CHECK_INTERVAL = 10000; // 10 Seconds
 
 const bot = new Telegraf(BOT_TOKEN);
 const activeUsers = {};
-const FILE_PATH = path.join(__dirname, 'users.json');
 
-// Memory persist karne ke liye file function
-function loadApprovedUsers() {
-    try {
-        if (fs.existsSync(FILE_PATH)) {
-            const data = fs.readFileSync(FILE_PATH, 'utf8');
-            return new Set(JSON.parse(data));
-        }
-    } catch (e) { console.error("Error loading users:", e); }
-    return new Set([ADMIN_CHAT_ID.toString()]);
-}
-
-function saveApprovedUsers() {
-    try {
-        fs.writeFileSync(FILE_PATH, JSON.stringify(Array.from(approvedUsers)), 'utf8');
-    } catch (e) { console.error("Error saving users:", e); }
-}
-
-const approvedUsers = loadApprovedUsers();
+// Runtime Array (Render isko mita nahi payega jab tak active hai)
+global.approvedList = global.approvedList || [ADMIN_CHAT_ID.toString()];
 const userNames = { [ADMIN_CHAT_ID.toString()]: "Admin (Aap)" };
 
 const USER_AGENTS = [
@@ -43,18 +24,20 @@ const USER_AGENTS = [
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Flipkart Bot is alive and running!'));
+app.get('/', (req, res) => res.send('Flipkart Bot is running perfectly!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
-// Middleware: Access Controller (PERMANENT FIXED)
+// Middleware: Access Controller (Ekdum Simplified)
 bot.use(async (ctx, next) => {
     if (!ctx.from) return;
     const userId = ctx.from.id.toString();
     
-    if (approvedUsers.has(userId) || (ctx.callbackQuery && ctx.from.id.toString() === ADMIN_CHAT_ID.toString())) {
+    // Agar user list mein hai ya admin callback query hai, toh sidhe aage bhejo
+    if (global.approvedList.includes(userId) || (ctx.callbackQuery && ctx.from.id.toString() === ADMIN_CHAT_ID.toString())) {
         return next();
     }
     
+    // Agar query commands hai aur user approved nahi hai, toh check karo
     if (ctx.message) {
         const name = `${ctx.from.first_name || ''} ${ctx.from.last_name || ''}`.trim() || 'No Name';
         const username = ctx.from.username ? `@${ctx.from.username}` : 'No Username';
@@ -90,9 +73,11 @@ bot.on('callback_query', async (ctx) => {
 
     if (userId !== ADMIN_CHAT_ID.toString()) return ctx.answerCbQuery("Unauthorized!");
     const targetUserId = data.split('_')[1];
+    
     if (data.startsWith('approve_')) {
-        approvedUsers.add(targetUserId.toString());
-        saveApprovedUsers(); // File me save ho gaya
+        if (!global.approvedList.includes(targetUserId.toString())) {
+            global.approvedList.push(targetUserId.toString());
+        }
         await ctx.editMessageText(`${ctx.callbackQuery.message.text}\n\n✅ **Status: Approved!**`);
         bot.telegram.sendMessage(targetUserId, "🥳 Mubarak ho! Admin ne aapka request approve kar diya hai.\n\nProduct track karne ke liye bhejien:\n`/start_track <Flipkart_URL>`");
     } else if (data.startsWith('decline_')) {
@@ -104,10 +89,10 @@ bot.on('callback_query', async (ctx) => {
 // --- ADMIN CONTROL COMMANDS ---
 bot.command('list_users', (ctx) => {
     if (ctx.from.id.toString() !== ADMIN_CHAT_ID.toString()) return ctx.reply("❌ Admin Only!");
-    if (approvedUsers.size <= 1) return ctx.reply("👥 Koyi approved user nahi hai.");
+    if (global.approvedList.length <= 1) return ctx.reply("👥 Koyi approved user nahi hai.");
     let msg = "👥 **Flipkart Bot Approved Users List:**\n\n";
     let count = 1;
-    approvedUsers.forEach((userId) => {
+    global.approvedList.forEach((userId) => {
         if (userId !== ADMIN_CHAT_ID.toString()) {
             msg += `${count}. 👤 **${userNames[userId] || "User"}**\n🆔 ID: \`${userId}\`\n\n`;
             count++;
@@ -121,9 +106,10 @@ bot.command('remove_user', (ctx) => {
     const args = ctx.message.text.split(' ').filter(arg => arg.trim() !== '');
     if (args.length < 2) return ctx.reply("⚠️ Format: `/remove_user <User_ID>`");
     const targetUserId = args[1].trim();
-    if (approvedUsers.has(targetUserId)) {
-        approvedUsers.delete(targetUserId);
-        saveApprovedUsers(); // File se hat gaya
+    
+    const index = global.approvedList.indexOf(targetUserId);
+    if (index > -1) {
+        global.approvedList.splice(index, 1);
         if (activeUsers[targetUserId]) {
             activeUsers[targetUserId].forEach(item => clearInterval(item.interval));
             delete activeUsers[targetUserId];
@@ -132,6 +118,7 @@ bot.command('remove_user', (ctx) => {
     } else { ctx.reply("⚠️ ID nahi mili."); }
 });
 
+// --- USER COMMANDS ---
 bot.start((ctx) => ctx.reply("🤖 Welcome back! Flipkart Stock Tracker Bot active hai.\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`"));
 
 bot.command('start_track', async (ctx) => {
@@ -190,4 +177,4 @@ async function checkFlipkartStock(ctx, chatId, targetUrl) {
     } catch (e) { console.log(`[Flipkart Bypass] Error, retrying...`); }
 }
 
-bot.launch().then(() => console.log("Flipkart Ultimate Bot Live..."));
+bot.launch().then(() => console.log("Flipkart Bot running without file crashes..."));
