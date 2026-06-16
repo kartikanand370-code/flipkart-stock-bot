@@ -6,7 +6,7 @@ const express = require('express');
 // --- CONFIGURATION ---
 const BOT_TOKEN = '8940524104:AAGf7rFaKp-k12qpHqsO_KRz2ucFxKyxMLY'; 
 const ADMIN_CHAT_ID = '7485181331'; 
-const CHECK_INTERVAL = 10000; // 10 Seconds
+const CHECK_INTERVAL = 15000; // 15 Seconds Done!
 // ---------------------
 
 const bot = new Telegraf(BOT_TOKEN);
@@ -17,13 +17,13 @@ const userNames = { [ADMIN_CHAT_ID.toString()]: "Admin (Aap)" };
 
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/605.1.15',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
 ];
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Flipkart Active Tracking Server is Running!'));
+app.get('/', (req, res) => res.send('Flipkart 15s Loop Server is Running!'));
 app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
 function checkAccess(ctx) {
@@ -58,7 +58,7 @@ bot.on('callback_query', async (ctx) => {
 
 bot.start((ctx) => {
     if (!checkAccess(ctx)) return;
-    ctx.reply("🤖 Flipkart Stock Tracker Bot Active!\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`");
+    ctx.reply("🤖 Flipkart 15s Tracker Bot Active!\n\n🔹 `/start_track <Flipkart_URL>`\n🔹 `/list_track`\n🔹 `/stop_all`");
 });
 
 bot.command('approve', (ctx) => {
@@ -84,17 +84,16 @@ bot.command('start_track', async (ctx) => {
     if (!activeUsers[chatId]) activeUsers[chatId] = [];
     if (activeUsers[chatId].some(item => item.url === flipkartLink)) return ctx.reply("⚠️ Already tracking this link!");
     
-    // Yahan hum lastStatus tracking state set kar rahe hain
     const itemConfig = { 
         url: flipkartLink, 
-        lastStatus: 'out_of_stock', // Default state assume kar rahe hain
+        lastStatus: 'out_of_stock', 
         interval: null 
     };
     
     itemConfig.interval = setInterval(() => { checkFlipkartStock(ctx, chatId, flipkartLink, itemConfig); }, CHECK_INTERVAL);
     activeUsers[chatId].push(itemConfig);
     
-    ctx.reply(`🚀 Flipkart tracking start ho gayi hai...`);
+    ctx.reply(`🚀 Flipkart tracking chalu ho gayi hai (Har 15 seconds)...`);
     checkFlipkartStock(ctx, chatId, flipkartLink, itemConfig);
 });
 
@@ -136,19 +135,18 @@ async function checkFlipkartStock(ctx, chatId, targetUrl, itemConfig) {
         const hasBuyButtons = pageText.includes('buy now') || pageText.includes('add to cart');
 
         if (!isOutOfStock && hasBuyButtons) {
-            // REALTIME SMART LOGIC: Har 10 second mein dhadap bhejega jab tak stock hai!
             itemConfig.lastStatus = 'in_stock';
+            // Anti-Spam Telegram Notification Send
             await bot.telegram.sendMessage(chatId, `🚨 STOCK AAGYA 🚨\n\n🔥 bhai flipkart pr stock aagya jaldi lga jake 🔥\n\nLink:\n${targetUrl}`,
                 Markup.inlineKeyboard([[Markup.button.callback('Stop Tracking 🛑', `stop_url_${itemIndex}`)]])
-            );
+            ).catch(e => console.log("Telegram Rate Limit hit, skipping loop alert."));
         } else {
-            // Agar pehle stock tha aur ab check kiya toh stock khatam mila
             if (itemConfig.lastStatus === 'in_stock') {
                 itemConfig.lastStatus = 'out_of_stock';
-                await bot.telegram.sendMessage(chatId, `⚠️ **ALERT: Stock Over!**\n\nYeh product ab wapas Out of Stock ho chuka hai, bot ne notification bhejni ab rok di hai.\nLink: ${targetUrl}`, { disable_web_page_preview: true });
+                await bot.telegram.sendMessage(chatId, `⚠️ **ALERT: Stock Over!**\n\nFlipkart product ab wapas Out of Stock ho chuka hai.\nLink: ${targetUrl}`, { disable_web_page_preview: true });
             }
         }
-    } catch (e) { console.log(`[Flipkart Tracker] Retrying next cycle...`); }
+    } catch (e) { console.log(`[Flipkart 15s] Request Error, retrying next cycle...`); }
 }
 
-bot.launch().then(() => console.log("Flipkart Loop Trigger Version Live..."));
+bot.launch().then(() => console.log("Flipkart 15s Engine Online..."));
